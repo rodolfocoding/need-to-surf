@@ -1,4 +1,5 @@
 import './util/module-alias';
+import 'dotenv/config';
 
 import { Server } from '@overnightjs/core';
 import express, { Application } from 'express';
