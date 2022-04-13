@@ -1,8 +1,8 @@
-import { ClientRequestError } from '@src/util/errros/client-request-error';
 import { StormGlassUnexpectedResponseError } from '@src/util/errros/storm-glass-unexpected-response-error';
-import config, { IConfig } from 'config';
+import * as HTTPUTIL from '@src/util/dependencies/request';
 
-import { AxiosError, AxiosStatic } from 'axios';
+import config, { IConfig } from 'config';
+import { ClientRequestError } from '@src/util/errros/client-request-error';
 
 export interface StormGlassPointSource {
   [key: string]: number;
@@ -41,7 +41,7 @@ export class StormGlass {
     'swellDirection,swellHeight,swellPeriod,waveDirection,windDirection,windSpeed';
   readonly stormGlassAPISource = 'noaa';
 
-  constructor(protected request: AxiosStatic) {}
+  constructor(protected request = new HTTPUTIL.Request()) {}
 
   public async fetchPoints(lat: number, lng: number): Promise<ForecastPoint[]> {
     try {
@@ -62,14 +62,16 @@ export class StormGlass {
 
       return this.normalizeResponse(response.data);
     } catch (err) {
-      if ((err as AxiosError).response && (err as AxiosError).response?.data) {
+      if (
+        err instanceof Error &&
+        HTTPUTIL.Request.isRequestError(err as HTTPUTIL.AxiosError)
+      ) {
+        const error = HTTPUTIL.Request.extractErrorData(err);
         throw new StormGlassUnexpectedResponseError(
-          `Error: ${JSON.stringify((err as AxiosError).response?.data)} Code: ${
-            (err as AxiosError).response?.status
-          }`
+          `Error: ${JSON.stringify(error.data)} Code: ${error.status}`
         );
       }
-      throw new ClientRequestError((err as Error).message);
+      throw new ClientRequestError(JSON.stringify(err));
     }
   }
 
