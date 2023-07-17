@@ -1,14 +1,21 @@
 import { StormGlass } from '@src/clients/stormGlass';
 import stormGlassNormalizedResponseFixture from '@test/fixtures/stormglass_normalized_response_3_hours.json';
-import { Beach, BeachPosition, ForeCast } from '../forecast';
+import {
+  Beach,
+  BeachPosition,
+  ForeCast,
+  ForecastProcessingInternalError,
+} from '../forecast';
 
 jest.mock('@src/clients/stormGlass');
 
 describe('Forecast Service', () => {
+  const mockedStormGlassService = new StormGlass() as jest.Mocked<StormGlass>;
+
   it('should return the forecast for a list of beaches', async () => {
-    StormGlass.prototype.fetchPoints = jest
-      .fn()
-      .mockResolvedValue(stormGlassNormalizedResponseFixture);
+    mockedStormGlassService.fetchPoints.mockResolvedValue(
+      stormGlassNormalizedResponseFixture
+    );
 
     const beaches: Beach[] = [
       {
@@ -83,9 +90,38 @@ describe('Forecast Service', () => {
       },
     ];
 
-    const forecast = new ForeCast(new StormGlass());
+    const forecast = new ForeCast(mockedStormGlassService);
     const beachesWithRating = await forecast.processForecastForBeaches(beaches);
 
     expect(beachesWithRating).toEqual(expectedResponse);
+  });
+
+  it('should return an empty list when the beaches array is empty', async () => {
+    const forecast = new ForeCast();
+
+    const response = await forecast.processForecastForBeaches([]);
+
+    expect(response).toEqual([]);
+  });
+
+  it('should throw internal processing error when something goes wrong during the rating process', async () => {
+    const beaches: Beach[] = [
+      {
+        lat: -33.792726,
+        lng: 151.289824,
+        name: 'Manly',
+        position: BeachPosition.E,
+        user: 'some-id',
+      },
+    ];
+
+    mockedStormGlassService.fetchPoints.mockRejectedValue(
+      'Error fetching data'
+    );
+
+    const forecast = new ForeCast(mockedStormGlassService);
+    await expect(forecast.processForecastForBeaches(beaches)).rejects.toThrow(
+      ForecastProcessingInternalError
+    );
   });
 });
